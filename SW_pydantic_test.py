@@ -111,8 +111,6 @@ class PydanticDialog(QDialog):
 
     def browseFile(self,field_name,pathtype):
         file_dialog=QFileDialog()
-        print(field_name)
-        print(pathtype)
         if pathtype=='file':
             file_dialog.setFileMode(QFileDialog.AnyFile)
             file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
