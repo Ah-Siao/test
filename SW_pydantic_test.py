@@ -1,9 +1,11 @@
 from PyQt5.QtWidgets import (QApplication, QDialog, QGridLayout, QLabel, QComboBox,
-                             QLineEdit, QRadioButton, QHBoxLayout, QPushButton, QVBoxLayout, QMessageBox)
-from pydantic import BaseModel, Field, ValidationError
+                             QLineEdit, QRadioButton, QHBoxLayout, QPushButton, QVBoxLayout, QMessageBox,QFileDialog)
+from pydantic import BaseModel, Field, ValidationError, DirectoryPath, FilePath
 from enum import IntEnum
 from typing import Optional, get_origin, Union, List, get_args
 import sys
+from pathlib import Path
+import os
 
 
 class IntEnumWithAlias(IntEnum):
@@ -21,6 +23,7 @@ class ItemEnum(IntEnumWithAlias):
 
 
 class Config(BaseModel):
+    workspace: DirectoryPath =Field(alias='workspace',description="workspace",default=f'{os.getcwd()}')
     Address: str = Field(alias='Address', default='taiwan',
                          description='Address')
     port: int = Field(alias='door', default=56, description='door_num')
@@ -32,6 +35,7 @@ class Config(BaseModel):
         alias='Sweetness', description='Sweetness', default=None)
     item: ItemEnum = Field(
         alias='item', default=ItemEnum.APPLE, description='components')
+    f: FilePath = Field(alias='FilePath', description='structure_path',default=None)
 
 
 class PydanticDialog(QDialog):
@@ -47,8 +51,6 @@ class PydanticDialog(QDialog):
         for row, (field_name, field_info) in enumerate(fields.items()):
             self.pydantic_layout.addWidget(
                 QLabel(field_info.description), row, 0)
-            # To solve the problem of
-            # For IntEnum Fields
             if get_origin(field_info.annotation) is None:
                 if issubclass(field_info.annotation, IntEnum):
                     self.pydantic_widgets[field_name] = QComboBox()
@@ -59,6 +61,15 @@ class PydanticDialog(QDialog):
                         default_value)
                     self.pydantic_layout.addWidget(
                         self.pydantic_widgets[field_name], row, 1)
+                    
+                elif issubclass(field_info.annotation,Path):
+                    self.pydantic_widgets[field_name]=QLineEdit()
+                    file_button = QPushButton("Browse")
+                    self.pydantic_layout.addWidget(file_button,row,2)
+                    self.pydantic_layout.addWidget(self.pydantic_widgets[field_name],row,1)
+                    pathtype=field_info.metadata[0].path_type
+                    file_button.clicked.connect(lambda _,x=field_name,y=pathtype:self.browseFile(x,y))
+
                 elif issubclass(field_info.annotation, str):
                     self.pydantic_widgets[field_name] = QLineEdit()
                     self.pydantic_layout.addWidget(
@@ -98,6 +109,24 @@ class PydanticDialog(QDialog):
     def asLayout(self):
         self.setLayout(self.pydantic_layout)
 
+    def browseFile(self,field_name,pathtype):
+        file_dialog=QFileDialog()
+        print(field_name)
+        print(pathtype)
+        if pathtype=='file':
+            file_dialog.setFileMode(QFileDialog.AnyFile)
+            file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+            file_path,_=file_dialog.getOpenFileName(self,'Select File')
+        elif pathtype=='dir':
+            file_dialog.setFileMode(QFileDialog.DirectoryOnly)
+            file_dialog.setAcceptMode(QFileDialog.AcceptOpen)
+            file_path=file_dialog.getExistingDirectory(self,'Select Directory')
+        else:
+             print(f"Unknown path type: {pathtype}")
+             return 
+        if file_path:
+            self.pydantic_widgets[field_name].setText(file_path)
+
     def getData(self):
         data = {}
         for field_name, widget in self.pydantic_widgets.items():
@@ -128,7 +157,7 @@ class PydanticDialog(QDialog):
 class ConfigDialog(PydanticDialog):
     def __init__(self, parent=None):
         super().__init__(Config, parent)
-        self.setWindowTitle('配置')
+        self.setWindowTitle('Pydantic_PyQt5')
 
         # Add QPushButton
         self.submit_button = QPushButton('Submit')
